@@ -1,11 +1,12 @@
+#!/usr/bin/env python3
 import csv
 import logging
 import os
 import re
+import argparse
 
-from sympy import false
-
-ALLOWED_FILE_TYPES = [".mp3", ".wav", ".aiff", ".aac", ".mp4", ".flac"]
+ALLOWED_FILE_TYPES = [".mp3", ".wav", ".aiff",
+                      ".aac", ".mp4", ".flac", ".m4a", ".ogg"]
 
 
 class SongItem:
@@ -29,6 +30,8 @@ class SongRenamer:
         self.logger.debug("starting song renamer")
 
     def parse_catalog(self, path):
+        self.songs = {}
+        self.albums = {}
         with open(path, newline='') as csvfile:
             self.logger.debug("opened catalog: " + path)
             reader = csv.DictReader(csvfile)
@@ -60,7 +63,11 @@ class SongRenamer:
             filename, file_extension = os.path.splitext(file_path)
             if file_extension.lower() in ALLOWED_FILE_TYPES:
                 isrc_code = filename.split("-")[-1]
-                song = self.songs[isrc_code]
+                try:
+                    song = self.songs[isrc_code]
+                except KeyError:
+                    self.logger.warning("song mapping not found: " + file_path)
+                    continue
                 path_only, _ = os.path.split(file_path)
                 new_filename = "{sequence_number}-{track_name}".format(
                     sequence_number=song.sequence_number, track_name=song.track_name)
@@ -69,7 +76,7 @@ class SongRenamer:
                 self.logger.info("renaming file: " +
                                  file_path + " -> " + new_path_name)
                 if not dry_run:
-                    pass
+                    os.rename(file_path, new_path_name)
             else:
                 self.logger.warning("skipping: " + file_path)
 
@@ -92,13 +99,45 @@ class SongRenamer:
             self.logger.info("renaming directory: " +
                              dir_path + " -> " + new_path_name)
             if not dry_run:
-                pass
+                os.rename(dir_path, new_path_name)
+
+    def run_renamer(self, root_dir, catalog_path, dry_run):
+        self.parse_catalog(catalog_path)
+        self.rename_files(root_dir, dry_run)
+        self.rename_directories(root_dir, dry_run)
 
 
-logging.basicConfig(
-    filename='renamer.log', format='%(asctime)s:%(levelname)s:%(message)s', level=logging.DEBUG)
-logger = logging.getLogger()
-sr = SongRenamer(logger)
-sr.parse_catalog("catalog.csv")
-sr.rename_files("sample/", False)
-sr.rename_directories("sample/", False)
+def dir_path(path):
+    if os.path.isdir(path):
+        return path
+    else:
+        raise argparse.ArgumentTypeError(
+            f"readable_dir:{path} is not a valid path")
+
+
+def file_path(path):
+    if os.path.isfile(path):
+        return path
+    else:
+        raise argparse.ArgumentTypeError(
+            f"readable_file:{path} is not a valid file")
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='song renamer')
+    parser.add_argument(
+        "--warn", help="only log at warning level and above", action="store_true")
+    parser.add_argument("--dry_run", help="do a dry run", action="store_true")
+    parser.add_argument(
+        'root_dir', help="root directory of files to rename", type=dir_path)
+    parser.add_argument('catalog', help="catalog csv", type=file_path)
+    args = parser.parse_args()
+    if args.warn:
+        log_level = logging.WARNING
+    else:
+        log_level = logging.DEBUG
+    logging.basicConfig(
+        filename='renamer.log', format='%(asctime)s:%(levelname)s:%(message)s', level=log_level)
+    logger = logging.getLogger()
+    sr = SongRenamer(logger)
+    sr.run_renamer(args.root_dir, args.catalog, args.dry_run)
