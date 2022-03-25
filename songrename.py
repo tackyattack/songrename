@@ -71,7 +71,7 @@ class SongRenamer:
                 if not dry_run:
                     pass
             else:
-                self.logger.debug("skipping: " + file_path)
+                self.logger.warning("skipping: " + file_path)
 
     def rename_directories(self, root_dir, dry_run):
         dir_list = []
