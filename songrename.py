@@ -39,7 +39,13 @@ class SongRenamer:
                 song = SongItem(isrc_code=row['isrc_code'],
                                 sequence_number=row['sequence_number'], track_name=row['track_name'])
                 if song.isrc_code in self.songs:
-                    self.logger.warning("duplicate ISRC: " + song.isrc_code)
+                    old_name = self.songs[song.isrc_code].track_name
+                    new_name = song.track_name
+                    self.logger.info(
+                        "duplicate ISRC: " + song.isrc_code + ":" + old_name + "->" + new_name)
+                    if new_name != old_name:
+                        self.logger.warning(
+                            "duplicate ISRC overwrite!: " + song.isrc_code + ":" + old_name + "->" + new_name)
                 self.songs[song.isrc_code] = song
                 upc_code = re.sub("[^0-9]", "", row['upc_code'])
                 album = AlbumItem(
