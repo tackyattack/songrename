@@ -29,35 +29,51 @@ class SongRenamer:
         self.logger = logger
         self.logger.debug("starting song renamer")
 
+    def sanitize_file_characters(self, input_str):
+        output_str = re.sub(r"[\<\>\:\"\\\/|\?\*]", "", input_str)
+        return output_str
+
     def parse_catalog(self, path):
         self.songs = {}
         self.albums = {}
         with open(path, newline='') as csvfile:
-            self.logger.debug("opened catalog: " + path)
+            self.logger.debug("opened catalog:{0}".format(path))
             reader = csv.DictReader(csvfile)
             for row in reader:
+                original_track_name = row['track_name']
+                safe_track_name = self.sanitize_file_characters(
+                    original_track_name)
+                if original_track_name != safe_track_name:
+                    self.logger.warning(
+                        "sanitized track name:\"{0}\"->\"{1}\"".format(original_track_name, safe_track_name))
                 song = SongItem(isrc_code=row['isrc_code'],
-                                sequence_number=row['sequence_number'], track_name=row['track_name'])
+                                sequence_number=row['sequence_number'], track_name=safe_track_name)
                 if song.isrc_code in self.songs:
                     old_name = self.songs[song.isrc_code].track_name
                     new_name = song.track_name
                     self.logger.info(
-                        "duplicate ISRC: " + song.isrc_code + ":" + old_name + "->" + new_name)
+                        "duplicate ISRC:{0}:\"{1}\"->\"{2}\"".format(song.isrc_code, old_name, new_name))
                     if new_name != old_name:
                         self.logger.warning(
-                            "duplicate ISRC overwrite!: " + song.isrc_code + ":" + old_name + "->" + new_name)
+                            "duplicate ISRC overwrite!:{0}:\"{1}\"->\"{2}\"".format(song.isrc_code, old_name, new_name))
                 self.songs[song.isrc_code] = song
                 upc_code = re.sub("[^0-9]", "", row['upc_code'])
+                original_album_name = row['album_name']
+                safe_album_name = self.sanitize_file_characters(
+                    original_album_name)
+                if original_album_name != safe_album_name:
+                    self.logger.warning(
+                        "sanitized album name:\"{0}\"->\"{1}\"".format(original_album_name, safe_album_name))
                 album = AlbumItem(
-                    upc_code=upc_code, album_name=row['album_name'])
+                    upc_code=upc_code, album_name=safe_album_name)
                 if album.upc_code in self.albums:
                     existing_album = self.albums[album.upc_code]
                     if existing_album.upc_code != album.upc_code:
                         self.logger.warning(
-                            "upc code differs: " + album.upc_code)
+                            "upc code differs:{0}".format(album.upc_code))
                     if existing_album.album_name != album.album_name:
                         self.logger.warning(
-                            "album name differs: " + album.album_name)
+                            "album name differs:{0}".format(album.album_name))
                 self.albums[album.upc_code] = album
 
     def rename_files(self, root_dir, dry_run):
@@ -72,19 +88,20 @@ class SongRenamer:
                 try:
                     song = self.songs[isrc_code]
                 except KeyError:
-                    self.logger.warning("song mapping not found: " + file_path)
+                    self.logger.warning(
+                        "song mapping not found:{0}".format(file_path))
                     continue
                 path_only, _ = os.path.split(file_path)
                 new_filename = "{sequence_number}-{track_name}".format(
                     sequence_number=song.sequence_number, track_name=song.track_name)
                 new_path_name = os.path.join(
                     path_only, new_filename + file_extension)
-                self.logger.info("renaming file: " +
-                                 file_path + " -> " + new_path_name)
+                self.logger.info(
+                    "renaming file:\"{0}\"->\"{1}\"".format(file_path, new_path_name))
                 if not dry_run:
                     os.rename(file_path, new_path_name)
             else:
-                self.logger.warning("skipping: " + file_path)
+                self.logger.warning("skipping:\"{0}\"".format(file_path))
 
     def rename_directories(self, root_dir, dry_run):
         dir_list = []
@@ -97,13 +114,13 @@ class SongRenamer:
                 album = self.albums[dir_name]
             except KeyError:
                 self.logger.warning(
-                    "album folder mapping not found: " + dir_path)
+                    "album folder mapping not found:\"{0}\"".format(dir_path))
                 continue
             path_only, _ = os.path.split(dir_path)
             new_dir_name = album.album_name
             new_path_name = os.path.join(path_only, new_dir_name)
-            self.logger.info("renaming directory: " +
-                             dir_path + " -> " + new_path_name)
+            self.logger.info(
+                "renaming directory:\"{0}\"->\"{1}\"".format(dir_path, new_path_name))
             if not dry_run:
                 os.rename(dir_path, new_path_name)
 
