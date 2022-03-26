@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import argparse
+import unicodedata
 
 ALLOWED_FILE_TYPES = [".mp3", ".wav", ".aiff",
                       ".aac", ".mp4", ".flac", ".m4a", ".ogg"]
@@ -30,7 +31,15 @@ class SongRenamer:
         self.logger.debug("starting song renamer")
 
     def sanitize_file_characters(self, input_str):
-        output_str = re.sub(r"[\<\>\:\"\\\/|\?\*]", "", input_str)
+        # https://en.wikipedia.org/wiki/Comparison_of_file_systems#Limits
+        input_str = unicodedata.normalize('NFKD', input_str).encode(
+            'ascii', 'ignore').decode('ascii')
+        special_char_allowlist = re.escape(r"'!@#$%&()-_.,")
+        allowlist_class = r"[^\w\s{allow_list}]".format(
+            allow_list=special_char_allowlist)
+        input_str = re.sub(allowlist_class, '', input_str)
+        # remove trailing period
+        output_str = re.sub(r"[\.]+$", '', input_str)
         return output_str
 
     def parse_catalog(self, path):
@@ -39,6 +48,7 @@ class SongRenamer:
         with open(path, newline='') as csvfile:
             self.logger.debug("opened catalog:{0}".format(path))
             reader = csv.DictReader(csvfile)
+            sanitized_album_names = {}
             for row in reader:
                 original_track_name = row['track_name']
                 safe_track_name = self.sanitize_file_characters(
@@ -62,8 +72,13 @@ class SongRenamer:
                 safe_album_name = self.sanitize_file_characters(
                     original_album_name)
                 if original_album_name != safe_album_name:
-                    self.logger.warning(
+                    self.logger.debug(
                         "sanitized album name:\"{0}\"->\"{1}\"".format(original_album_name, safe_album_name))
+                    if safe_album_name not in sanitized_album_names:
+                        self.logger.warning(
+                            "sanitized new album name:\"{0}\"->\"{1}\"".format(original_album_name, safe_album_name))
+                        sanitized_album_names[safe_album_name] = original_album_name
+
                 album = AlbumItem(
                     upc_code=upc_code, album_name=safe_album_name)
                 if album.upc_code in self.albums:
