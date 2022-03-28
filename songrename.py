@@ -49,23 +49,24 @@ class SongRenamer:
             self.logger.debug("opened catalog:{0}".format(path))
             reader = csv.DictReader(csvfile)
             sanitized_album_names = {}
-            for row in reader:
+            for idx, row in enumerate(reader):
+                row_number = idx + 2
                 original_track_name = row['track_name']
                 safe_track_name = self.sanitize_file_characters(
                     original_track_name)
                 if original_track_name != safe_track_name:
                     self.logger.warning(
-                        "sanitized track name:\"{0}\"->\"{1}\"".format(original_track_name, safe_track_name))
+                        "row {0}:sanitized track name:\"{1}\"->\"{2}\"".format(row_number, original_track_name, safe_track_name))
                 song = SongItem(isrc_code=row['isrc_code'],
                                 sequence_number=row['sequence_number'], track_name=safe_track_name)
                 if song.isrc_code in self.songs:
                     old_name = self.songs[song.isrc_code].track_name
                     new_name = song.track_name
                     self.logger.info(
-                        "duplicate ISRC:{0}:\"{1}\"->\"{2}\"".format(song.isrc_code, old_name, new_name))
+                        "row {0}:duplicate ISRC:{1}:\"{2}\"->\"{3}\"".format(row_number, song.isrc_code, old_name, new_name))
                     if new_name != old_name:
                         self.logger.warning(
-                            "duplicate ISRC overwrite!:{0}:\"{1}\"->\"{2}\"".format(song.isrc_code, old_name, new_name))
+                            "row {0}:duplicate ISRC overwrite!:{1}:\"{2}\"->\"{3}\"".format(row_number, song.isrc_code, old_name, new_name))
                 self.songs[song.isrc_code] = song
                 upc_code = re.sub("[^0-9]", "", row['upc_code'])
                 original_album_name = row['album_name']
@@ -73,10 +74,10 @@ class SongRenamer:
                     original_album_name)
                 if original_album_name != safe_album_name:
                     self.logger.debug(
-                        "sanitized album name:\"{0}\"->\"{1}\"".format(original_album_name, safe_album_name))
+                        "row {0}:sanitized album name:\"{1}\"->\"{2}\"".format(row_number, original_album_name, safe_album_name))
                     if safe_album_name not in sanitized_album_names:
                         self.logger.warning(
-                            "sanitized new album name:\"{0}\"->\"{1}\"".format(original_album_name, safe_album_name))
+                            "row {0}:sanitized new album name:\"{1}\"->\"{2}\"".format(row_number, original_album_name, safe_album_name))
                         sanitized_album_names[safe_album_name] = original_album_name
 
                 album = AlbumItem(
@@ -85,10 +86,10 @@ class SongRenamer:
                     existing_album = self.albums[album.upc_code]
                     if existing_album.upc_code != album.upc_code:
                         self.logger.warning(
-                            "upc code differs:{0}".format(album.upc_code))
+                            "row {0}:upc code differs:{1}".format(row_number, album.upc_code))
                     if existing_album.album_name != album.album_name:
                         self.logger.warning(
-                            "album name differs:{0}".format(album.album_name))
+                            "row {0}:album name differs:{1}".format(row_number, album.album_name))
                 self.albums[album.upc_code] = album
 
     def rename_files(self, root_dir, dry_run):
