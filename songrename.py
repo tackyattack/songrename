@@ -5,6 +5,7 @@ import os
 import re
 import argparse
 import unicodedata
+import time
 
 ALLOWED_FILE_TYPES = [".mp3", ".wav", ".aiff",
                       ".aac", ".mp4", ".flac", ".m4a", ".ogg"]
@@ -49,6 +50,7 @@ class SongRenamer:
             self.logger.debug("opened catalog:{0}".format(path))
             reader = csv.DictReader(csvfile)
             sanitized_album_names = {}
+            album_names_name_dict = {}
             for idx, row in enumerate(reader):
                 row_number = idx + 2
                 original_track_name = row['track_name']
@@ -82,6 +84,11 @@ class SongRenamer:
 
                 album = AlbumItem(
                     upc_code=upc_code, album_name=safe_album_name)
+                if album.album_name in album_names_name_dict and album_names_name_dict[album.album_name].upc_code != album.upc_code:
+                    self.logger.warning(
+                        "row {0}:duplicate album name mapping!:\"{1}\" upc:{2}->{3}".format(row_number, album.album_name,
+                                                                                            album_names_name_dict[album.album_name].upc_code, album.upc_code))
+                album_names_name_dict[album.album_name] = album
                 if album.upc_code in self.albums:
                     existing_album = self.albums[album.upc_code]
                     if existing_album.upc_code != album.upc_code:
@@ -135,15 +142,22 @@ class SongRenamer:
             path_only, _ = os.path.split(dir_path)
             new_dir_name = album.album_name
             new_path_name = os.path.join(path_only, new_dir_name)
+            if os.path.isdir(new_path_name):
+                self.logger.warning(
+                    "directory already exists! skipping:\"{0}\"->\"{1}\"".format(dir_path, new_path_name))
+                continue
             self.logger.info(
                 "renaming directory:\"{0}\"->\"{1}\"".format(dir_path, new_path_name))
             if not dry_run:
                 os.rename(dir_path, new_path_name)
 
     def run_renamer(self, root_dir, catalog_path, dry_run):
+        start_time = time.time()
         self.parse_catalog(catalog_path)
         self.rename_files(root_dir, dry_run)
         self.rename_directories(root_dir, dry_run)
+        self.logger.info(
+            "total run time:{0} seconds".format(time.time() - start_time))
 
 
 def dir_path(path):
